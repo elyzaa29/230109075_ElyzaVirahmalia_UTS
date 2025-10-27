@@ -160,13 +160,13 @@ class EnrollmentServiceTest {
 
     // Stub unuk StudentRepository
     static class StudentRepositoryStub implements StudentRepository {
-        private Map<String, Student> students = new HashMap<>();
+        private final Map<String, Student> students = new HashMap<>();
 
         public StudentRepositoryStub() {
-            students.put("S001", new Student("S001", "Park Sungho", 3.8)); // IPK ≥ 3.0 → 24 SKS
-            students.put("S002", new Student("S002", "Lee Sanghyeok", 2.6)); // IPK 2.5–2.99 → 21 SKS
-            students.put("S003", new Student("S003", "Myung Jaehyun", 2.3)); // IPK 2.0–2.49 → 18 SKS
-            students.put("S004", new Student("S004", "Han Taesan", 1.9)); // IPK < 2.0 → 15 SKS
+            students.put("S001", new Student("S001", "Park Sungho", "park@uni.ac.id", "Informatika", 5, 3.8, "ACTIVE"));
+            students.put("S002", new Student("S002", "Lee Sanghyeok", "lee@uni.ac.id", "Informatika", 4, 2.6, "ACTIVE"));
+            students.put("S003", new Student("S003", "Myung Jaehyun", "jaehyun@uni.ac.id", "Sistem Informasi", 4, 2.3, "ACTIVE"));
+            students.put("S004", new Student("S004", "Han Taesan", "taesan@uni.ac.id", "Informatika", 3, 1.9, "ACTIVE"));
         }
 
         @Override
@@ -174,20 +174,12 @@ class EnrollmentServiceTest {
             return students.get(studentId);
         }
 
-        @Override
-        public void save(Student student) { }
-
-        @Override
-        public void update(Student student) { }
-
-        @Override
-        public List<Course> getCompletedCourses(String studentId) {
-            return List.of();
-        }
-
-        @Override
-        public void delete(String studentId) { }
+        @Override public void save(Student student) {}
+        @Override public void update(Student student) {}
+        @Override public List<Course> getCompletedCourses(String studentId) { return List.of(); }
+        @Override public void delete(String studentId) {}
     }
+
 
     // Stub untuk rentang nilai IPK di GradeCalculator
     static class GradeCalculatorStub extends GradeCalculator {
@@ -202,49 +194,46 @@ class EnrollmentServiceTest {
 
     // unit test unruk validasi batas sks mahasiswa sesuai sistem IPK
     @Test
-    @DisplayName("Validasi batas SKS mahasiswa - sesuai aturan IPK")
+    @DisplayName("Validasi batas SKS mahasiswa - sesuai aturan IPK (pakai STUB)")
     void testValidateCreditLimit_UsingStub() {
-        // Buat EnrollmentService baru dengan stub, jangan pakai instance dari @BeforeEach
-        StudentRepository studentRepository = new StudentRepositoryStub();
-        GradeCalculator gradeCalculator = new GradeCalculatorStub();
-        EnrollmentService enrollmentService =
-                new EnrollmentService(studentRepository, null, null, gradeCalculator);
+        StudentRepositoryStub studentRepository = new StudentRepositoryStub();
+        GradeCalculatorStub gradeCalculator = new GradeCalculatorStub();
 
-        // Park Sungho - IPK 3.8 → max 24 SKS → ambil 22 = OK
-        assertFalse(enrollmentService.validateCreditLimit("S001", 25),
-                "Park Sungho seharusnya tidak boleh ambil 22 SKS");
+        EnrollmentService service = new EnrollmentService(
+                studentRepository,
+                null,
+                null,
+                gradeCalculator
+        );
 
-        // Lee Sanghyeok - IPK 2.6 → max 21 SKS → ambil 22 = gagal
-        assertFalse(enrollmentService.validateCreditLimit("S002", 22),
+        assertTrue(service.validateCreditLimit("S001", 22),
+                "Park Sungho seharusnya boleh ambil 22 SKS");
+        assertFalse(service.validateCreditLimit("S002", 22),
                 "Lee Sanghyeok seharusnya tidak boleh ambil 22 SKS");
-
-        // Myung Jaehyun - IPK 2.3 → max 18 SKS → ambil 18 = OK
-        assertFalse(enrollmentService.validateCreditLimit("S003", 18),
-                "Myung Jaehyun seharusnya tidak boleh ambil 18 SKS");
-
-        // Han Taesan - IPK 1.9 → max 15 SKS → ambil 16 = gagal
-        assertFalse(enrollmentService.validateCreditLimit("S004", 16),
+        assertTrue(service.validateCreditLimit("S003", 18),
+                "Myung Jaehyun seharusnya boleh ambil 18 SKS");
+        assertFalse(service.validateCreditLimit("S004", 16),
                 "Han Taesan seharusnya tidak boleh ambil 16 SKS");
     }
 
-    // unit test untuk memvalidasi jika mahasiswa tidak ditemukan
+
     @Test
-    @DisplayName("Validasi batas SKS mahasiswa - StudentNotFoundException")
+    @DisplayName("Validasi batas SKS mahasiswa - student tidak ditemukan")
     void testValidateCreditLimit_StudentNotFound() {
         StudentRepository studentRepository = new StudentRepositoryStub();
         GradeCalculator gradeCalculator = new GradeCalculatorStub();
         EnrollmentService enrollmentService =
                 new EnrollmentService(studentRepository, null, null, gradeCalculator);
 
-        assertThrows(StudentNotFoundException.class, () -> {
-            enrollmentService.validateCreditLimit("S999", 18);
-        });
+        assertThrows(StudentNotFoundException.class,
+                () -> enrollmentService.validateCreditLimit("S999", 20),
+                "Mahasiswa tidak ditemukan seharusnya lempar exception");
     }
 
     // Menghapsu matakuliah yang udah didaftarkan
     // stub untuk course repository
     static class CourseRepositoryStub implements CourseRepository {
-        private Map<String, Course> courses = new HashMap<>();
+        private final Map<String, Course> courses = new HashMap<>();
 
         public CourseRepositoryStub() {
             Course c1 = new Course();
@@ -280,20 +269,7 @@ class EnrollmentServiceTest {
         CourseRepository courseRepository = new CourseRepositoryStub();
 
         // NotificationService stub sederhana
-        NotificationService notificationService = new NotificationService() {
-            @Override
-            public void sendEmail(String to, String subject, String body) {
-                // Tidak perlu mengirim email sebenarnya
-            }
-
-            @Override
-            public void sendSMS(String phone, String message) {
-
-            }
-        };
-
-        EnrollmentService enrollmentService =
-                new EnrollmentService(studentRepository, courseRepository, notificationService, null);
+        EnrollmentService enrollmentService = getEnrollmentService(studentRepository, courseRepository);
 
         // hapus course
         enrollmentService.dropCourse("S001", "CS101");
@@ -309,6 +285,22 @@ class EnrollmentServiceTest {
         // Drop course yang tidak ada → harus lempar exception
         assertThrows(CourseNotFoundException.class, () ->
                 enrollmentService.dropCourse("S001", "CS999"));
+    }
+
+    private static EnrollmentService getEnrollmentService(StudentRepository studentRepository, CourseRepository courseRepository) {
+        NotificationService notificationService = new NotificationService() {
+            @Override
+            public void sendEmail(String to, String subject, String body) {
+                // Tidak perlu mengirim email sebenarnya
+            }
+
+            @Override
+            public void sendSMS(String phone, String message) {
+
+            }
+        };
+
+        return new EnrollmentService(studentRepository, courseRepository, notificationService, null);
     }
 }
 
